@@ -36,7 +36,7 @@ const isProperty = (key) => key !== 'children' && !isEvent(key);
 const isNew = (prev, next) => (key) => prev[key] !== next[key];
 const isGone = (prev, next) => (key) => !(key in next);
 
-function updateDom(dom, prevProps, nextProps) {
+function updateDom(dom, prevProps = {}, nextProps = {}) {
   // 移除旧事件
   Object.keys(prevProps)
     .filter(isEvent)
@@ -135,7 +135,8 @@ function updateHostComponent(fiber) {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
   }
-  reconcileChildren(fiber, fiber.props.children);
+  const children = (fiber.props && fiber.props.children) || [];
+  reconcileChildren(fiber, children);
 }
 
 function reconcileChildren(wipFiber, elements) {
