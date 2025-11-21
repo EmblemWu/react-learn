@@ -1,23 +1,33 @@
 # 第 4 章：调度与并发特性
 
-## 1. `requestIdleCallback` 思想
-- 让浏览器在“空闲片段”执行低优任务，若用户交互打断则延后。
-- React 17 以前未默认启用；React 18+ 通过自研 Scheduler（基于 MessageChannel）实现更精细的优先级与过期时间。
+## 1. 为什么要可中断
 
-## 2. React 18/19 并发能力概览
-- **可中断渲染**：长列表渲染可暂停，把控制权还给浏览器。
-- **优先级**：用户输入优先，低优先级任务（如预渲染）可延后。
-- **Transitions**：`startTransition` 标记更新为非紧急；`useTransition` 提供 pending 状态。
-- **Selective Hydration**：SSR 片段按需唤醒。
+- 主线程需要在 16ms 内完成 JS + 样式 + 布局 + 绘制才能 60fps。
+- 大量节点 diff 会占满时间片，用户输入（如滚动、输入）被延迟，体验掉帧。
 
-## 3. 教学版调度（在 `mini-react`）
-- 使用 `requestIdleCallback(workLoop)` 近似模拟“可中断 diff”。
-- `deadline.timeRemaining()` 决定是否让出线程。
-- 提交阶段仍一次性同步完成，以保证一致性。
+## 2. requestIdleCallback 思想简化版
 
-## 4. 练习
-- 在弱设备（或 DevTools throttle CPU）打开 `examples/counter.html`，在 `performUnitOfWork` 中插入耗时代码，观察帧率。
-- 把 `requestIdleCallback` 换成 `while(nextUnitOfWork) performUnitOfWork(...)`，对比卡顿。
-- 思考：如果要支持优先级队列，应在哪里存放不同优先级任务？（提示：官方 Scheduler 单独维护小顶堆）。
+- 浏览器在“空闲”时调用回调，回调得到 `timeRemaining()` 判断还能干多久。
+- 教学版 `mini-react` 用此能力在 render 阶段切片；提交仍一次性同步。
+- 代码：`node code/04-scheduling/ric-vs-while.js`，感受是否可打断。
 
-并发渲染不是并行；它是“可中断、可恢复、可降级”的调度策略。
+## 3. React 18/19 的 Scheduler（概念）
+
+- 使用 `MessageChannel` 驱动 macrotask，配合小顶堆管理优先级任务。
+- 每个任务有 `priorityLevel` 与 `expirationTime`；过期后提升优先级确保尽快执行。
+- `startTransition` 将更新标为“非紧急”，可被更高优先级打断。
+
+## 4. 并发特性清单
+
+- **可中断渲染**：长列表渲染可暂停，优先响应用户输入。
+- **Transitions**：把状态更新标记为低优先级（如搜索建议）。
+- **Suspense**：在数据未就绪时显示占位，支持串联多个异步源。
+- **Selective Hydration**：SSR 场景按需唤醒重要岛屿。
+
+## 5. 练习
+
+- 打开 `examples/counter.html`，在 DevTools 调 slow 4x CPU，切换大列表，观察帧率。
+- 在 `mini-react` 中为 `requestIdleCallback` 回退写一个基于 `setTimeout` 的 polyfill（已实现），对比行为。
+- 思考：如果要实现优先级，你会把任务队列放在哪里？（提示：独立 scheduler 层）。
+
+理解调度后，你能解释“React 并发并非并行”，并能读懂 `scheduler` 包。

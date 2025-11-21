@@ -1,24 +1,35 @@
 # 第 5 章：生态与工程化
 
-## 1. 打包器与编译
-- JSX 需要编译：Babel / SWC / esbuild；新 JSX Transform 通过自动注入 `jsx/jsxs` 函数（而非全局 React）。
-- Tree-shaking 依赖 ESModule；生产构建会做常量折叠、Dead Code Elimination。
+## 1. JSX 编译链路
 
-## 2. 开发体验
-- Fast Refresh 依赖模块热替换（HMR）+ 组件边界保存状态。
-- Source Map 帮助调试；React DevTools 让你查看 Fiber、Hooks 状态。
+- Babel/SWC/esbuild 将 JSX 转成 `jsx/jsxs` 调用；React 17+ 不再全局注入 React。
+- 生产构建常做：常量折叠、dead code elimination、scope hoisting。
+- 代码：`code/01-mental-model/jsx-transform.js` 展示最小 JSX 编译产物。
 
-## 3. 性能 & 可观测性
-- Profiler API：`<Profiler id="..." onRender={...}>`；DevTools 里也有 Profiler 页。
-- 常见优化：`useMemo`、`useCallback`、`memo`；但更重要的是避免不必要的状态提升。
+## 2. 打包与拆包
 
-## 4. 单元与端到端测试
-- 组件测试：Vitest/Jest + React Testing Library；
-- 端到端：Playwright/Cypress。理解 React 的异步更新后，更好地写等待逻辑（`await findByText`）。
+- 入口拆分：`react` 只包含 API，`react-dom` 负责 DOM，`scheduler` 单独发布供生态使用。
+- ESM/CJS 双包：包内 `exports` 字段指向不同构建，工具按需选择。
 
-## 5. 建议的下一步阅读
-- React 官方文档、React 18 并发渲染章节。
-- Dan Abramov《Build your own React》文章系列（思想相似于本仓库的 mini-react）。
-- Scheduler 源码（`packages/scheduler`），理解优先级与小顶堆实现。
+## 3. 开发体验
 
-工程化的视角能帮助你把“原理”转化为“可维护的生产代码”。
+- Fast Refresh：保持组件状态，热替换失效边界时才全量刷新。
+- Source Map：映射压缩后代码到源码；React DevTools 提供 Fiber/Hook 状态视图。
+
+## 4. 性能与观测
+
+- Profiler：`<Profiler onRender />` 或 DevTools Profiler 量化渲染耗时。
+- 优化手段：减少状态提升、`memo/useMemo/useCallback`、列表 key 稳定、避免在 render 内创建重对象。
+
+## 5. 测试
+
+- 单元：Vitest/Jest + React Testing Library（强调用户视角）。
+- E2E：Playwright/Cypress，注意等待异步 UI（`findBy*`）。
+
+## 6. 推荐阅读路径
+
+- React 官方文档“深入 React”章节。
+- Dan Abramov《Build your own React》系列。
+- React Scheduler 源码（`packages/scheduler`）与 RFC。
+
+工程化视角能让你把“原理”真正落到生产可维护性和性能上。

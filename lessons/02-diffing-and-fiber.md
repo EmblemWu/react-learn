@@ -1,48 +1,60 @@
 # 第 2 章：虚拟 DOM、Diff 与 Fiber
 
-## 1. 为什么需要虚拟 DOM
-- 真正慢的不是 DOM API 本身，而是**在不知道改哪的情况下**做无差别操作。
-- VDOM 让我们用 JS 对象描述 UI，先 diff 再最小化操作，便于跨平台（DOM/Native/Canvas）。
+## 1. 虚拟 DOM 的本质
 
-## 2. 经典 Diff（O(n^3) → O(n)）
-- React 的启发式：同层比较、不同类型直接替换、通过 key 识别节点。
-- 线性时间换取“一些场景”下的额外操作成本，但大幅提升可用性。
+- 不是性能银弹，而是“跨平台的最小变更计划器”。
+- 描述层（VDOM 对象）与宿主层（真实 DOM / 原生 View）解耦，React DOM/Nativ e/Canvas 均可复用协调逻辑。
 
-## 3. Fiber 解决什么问题
-- 16ms 一帧限制（60fps），一次性递归 diff 会阻塞主线程。
-- Fiber 把递归转为链表迭代，每个节点是一个 Fiber 单元，可在空闲时间片执行（`requestIdleCallback` 思想）。
-- 支持优先级、中断、恢复与复用，React 18 的并发特性基于此。
+## 2. Diff 策略细节
 
-## 4. Fiber 结构（教学版抽象）
-```ts
-interface Fiber {
-  type: string | Function
-  dom: Node | null
-  parent: Fiber | null
-  child: Fiber | null
-  sibling: Fiber | null
-  props: { children: FiberElement[]; [k: string]: any }
-  alternate?: Fiber | null // 上一次提交的对应 Fiber
-  effectTag?: 'PLACEMENT' | 'UPDATE' | 'DELETION'
-  hooks?: Hook[]
-}
-```
+- 同层对比：不跨层移动节点。
+- 类型不同：直接删旧建新。
+- Key 的作用：在同级列表中稳定标识节点，避免不必要的卸载/重建（保状态）。
+- 代码：`node code/02-fiber/diff-keys.js`，对比有无 key 的重排差异。
 
-## 5. 协调流程（简化版）
-1) `render` 把根元素包成 `wipRoot`，将 `nextUnitOfWork` 指向它。
-2) `workLoop` 使用 `requestIdleCallback`：时间片内不停执行 `performUnitOfWork`，时间不足时让出线程。
-3) `performUnitOfWork`：
-   - 为当前 Fiber 创建 DOM（或跳过函数组件）。
-   - `reconcileChildren`：基于 `alternate`（旧 Fiber）生成新 Fiber 链表，并打上 effectTag。
-   - 返回下一个工作单元：优先 child，其次 sibling，再回到叔辈。
-4) 当 `nextUnitOfWork` 为空且 `wipRoot` 存在时，进入提交阶段。
+## 3. Fiber：把递归栈改成可中断的链表
 
-## 6. 提交阶段（commit）
-- 递归遍历新 Fiber 树，依 effectTag 执行 DOM 插入/更新/删除。
-- 与调度解耦：协调可被打断，提交必须一次性完成以保证一致性。
+- 设计动机：避免长任务阻塞（>16ms）导致掉帧。
+- 结构（教学版字段）：
+  ```ts
+  type Fiber = {
+    type;
+    props;
+    dom;
+    parent;
+    child;
+    sibling;
+    alternate;
+    effectTag;
+    hooks;
+  };
+  ```
+- 遍历顺序：深度优先，优先 child，再 sibling，最后回到父亲的 sibling。
+
+## 4. 协调（render phase）流程复盘
+
+1. 根元素封装成 `wipRoot`，`nextUnitOfWork = wipRoot`。
+2. `workLoop` 在空闲时间片执行 `performUnitOfWork`。
+3. `performUnitOfWork`：
+   - 函数组件：调用组件得到 children 元素数组。
+   - Host 组件：创建 DOM（首渲染时）。
+   - `reconcileChildren`：与旧 Fiber 对比，打上 `PLACEMENT/UPDATE/DELETION`。
+   - 返回下一个工作单元（child → sibling → 回溯）。
+4. 时间片不足时让出（`deadline.timeRemaining()`），下次继续。
+
+## 5. 提交（commit phase）
+
+- 前序递归遍历 effect list，对 DOM 执行增删改。
+- 删除必须从最近的有 DOM 的祖先开始，函数组件自身没有 DOM 需往下找 child。
+
+## 6. 代码导航
+
+- `mini-react/core.js`: `performUnitOfWork`、`reconcileChildren`、`commitWork`。
+- `code/02-fiber/trace-workloop.js`: 在教学版基础上插桩，打印 Fiber 构建/提交顺序。
 
 ## 7. 练习
-- 在 `mini-react/core.js` 中搜索 `reconcileChildren`、`performUnitOfWork`，打 `console.log(fiber.type?.name || fiber.type)`，观察构建顺序。
-- 改用 `setTimeout(workLoop, 0)` 代替 `requestIdleCallback`，体会卡顿与无法被高优任务打断的区别。
 
-理解 Fiber 的“可中断 diff + 一次性提交”双相模型，是吃透 React 18+ 的核心。
+- 在 `reconcileChildren` 中加入 key 对比逻辑：当 `element.key !== oldFiber.key` 时视为不同类型。
+- 把 `requestIdleCallback` 改为同步 while 循环，感受卡顿与不可中断。
+
+把 Fiber 想成“任务切片 + 双缓冲树”，理解它后看 Scheduler 更轻松。
