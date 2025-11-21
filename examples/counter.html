@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>mini-react playground</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; line-height: 1.6; }
+    button { margin-right: 8px; padding: 6px 12px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <h1>mini-react 演示</h1>
+  <p>打开 DevTools 观察控制台输出，尝试修改源码。</p>
+
+  <div id="app"></div>
+
+  <script type="module">
+    import ReactLike, { createElement, render, useState } from '../mini-react/core.js';
+
+    const { log } = console;
+
+    function Counter(props) {
+      const [count, setCount] = useState(0);
+      return (
+        createElement('div', { className: 'card' },
+          createElement('div', { className: 'row' },
+            createElement('strong', null, props.title ?? '计数器'),
+            createElement('span', null, `当前：${count}`),
+            createElement('button', { onClick: () => setCount(count + 1) }, '+1'),
+            createElement('button', { onClick: () => setCount((c) => c + 1) }, '函数式 +1'),
+            createElement('button', { onClick: () => setCount(0) }, '重置')
+          )
+        )
+      );
+    }
+
+    function ListStress() {
+      const [toggle, setToggle] = useState(true);
+      const items = Array.from({ length: toggle ? 500 : 5 }, (_, i) => i);
+      return createElement('div', { className: 'card' },
+        createElement('div', { className: 'row' },
+          createElement('strong', null, '大列表切换 (观察调度)'),
+          createElement('button', { onClick: () => setToggle((t) => !t) }, '切换条目数')
+        ),
+        createElement('div', null,
+          items.map((n) => createElement('div', { key: n }, `Item ${n}`))
+        )
+      );
+    }
+
+    function App() {
+      log('[render] App');
+      return createElement('div', null,
+        createElement(Counter, { title: '基础计数' }),
+        createElement(ListStress),
+      );
+    }
+
+    const root = document.getElementById('app');
+    render(createElement(App), root);
+  </script>
+</body>
+</html>
